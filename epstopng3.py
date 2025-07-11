@@ -51,7 +51,7 @@ def isolate_central_object(img_data):
         image_center = (width / 2, height / 2)
         min_distance, central_contour_index = float('inf'), -1
         for i, c in enumerate(contours):
-            if hierarchy[0][i][3] == -1:
+            if hierarchy[0][i][3] == -1: # Apenas contornos "pais"
                 x, y, w, h = cv2.boundingRect(c)
                 contour_center = (x + w / 2, y + h / 2)
                 distance = np.sqrt((contour_center[0] - image_center[0])**2 + (contour_center[1] - image_center[1])**2)
@@ -60,18 +60,18 @@ def isolate_central_object(img_data):
         
         if central_contour_index == -1: return img_data
 
+        # Recria a máscara com os buracos
         final_mask = np.zeros_like(mask)
-        cv2.drawContours(final_mask, contours, central_contour_index, (255), -1)
+        cv2.drawContours(final_mask, contours, central_contour_index, (255), -1) # Desenha o pai
         for i, c in enumerate(contours):
-            if hierarchy[0][i][3] == central_contour_index:
-                cv2.drawContours(final_mask, contours, i, (0), -1)
+            if hierarchy[0][i][3] == central_contour_index: # Se for filho do central
+                cv2.drawContours(final_mask, contours, i, (0), -1) # Desenha o buraco
         
         return cv2.bitwise_and(img_data, img_data, mask=final_mask)
     except Exception as e:
         print(f"   - ERRO ao isolar objeto: {e}")
         return None
 
-# --- NOVA FUNÇÃO PARA CRIAR A IMAGEM FINAL QUADRADA 1:1 ---
 def resize_to_square_canvas(img_data, padding):
     """
     Recebe dados de uma imagem com um objeto isolado e o coloca
@@ -86,16 +86,10 @@ def resize_to_square_canvas(img_data, padding):
         x, y, w, h = cv2.boundingRect(coords)
         content_crop = img_data[y:y+h, x:x+w]
 
-        # Determina o tamanho do novo canvas quadrado
         side_len = max(w, h) + padding * 2
-        
-        # Cria o canvas quadrado e transparente
         square_canvas = np.zeros((side_len, side_len, 4), dtype=np.uint8)
-
-        # Calcula onde colar o logo para que fique centralizado
         paste_x = (side_len - w) // 2
         paste_y = (side_len - h) // 2
-
         square_canvas[paste_y:paste_y+h, paste_x:paste_x+w] = content_crop
         return square_canvas
 
@@ -104,7 +98,7 @@ def resize_to_square_canvas(img_data, padding):
         return None
 
 
-# --- LOOP PRINCIPAL REESTRUTURADO ---
+# --- LOOP PRINCIPAL COM TODAS AS ETAPAS ---
 eps_files = [f for f in os.listdir(input_folder) if f.lower().endswith(".eps")]
 
 for filename in tqdm(eps_files, desc="Convertendo e processando arquivos", unit="arquivo"):
@@ -129,10 +123,10 @@ for filename in tqdm(eps_files, desc="Convertendo e processando arquivos", unit=
             
         print("-> Processamento de imagem iniciado...")
         
-        # Etapa 2: Centralizar o conteúdo
+        # Etapa 2: Centralizar o conteúdo (logo + barras)
         centered_data = recenter_content(img_data)
         
-        # Etapa 3: Isolar o objeto central
+        # Etapa 3: Isolar o objeto central (removendo as barras)
         isolated_data = isolate_central_object(centered_data)
 
         # Etapa 4: Redimensionar para um canvas quadrado 1:1
